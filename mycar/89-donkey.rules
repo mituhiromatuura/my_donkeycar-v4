@@ -1,0 +1,2 @@
+KERNEL=="ttyUSB*",ATTRS{idVendor}=="10c4",ATTRS{product}=="CP2102 USB to UART Bridge Controller",SYMLINK+="ttyWt901"
+KERNEL=="hidraw*",ATTRS{idVendor}=="04b4",ATTRS{product}=="PSoC Generic HID Data Transfer",GROUP="pi",SYMLINK+="hidPsoc"

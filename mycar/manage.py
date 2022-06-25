@@ -64,6 +64,9 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
     #Initialize car
     V = dk.vehicle.Vehicle()
 
+    from donkeycar.parts.cycle_time import CycleTime
+    V.add(CycleTime(cfg), inputs=['user/mode'], outputs=['cycle_time'])
+
     #Initialize logging before anything else to allow console logging
     if cfg.HAVE_CONSOLE_LOGGING:
         logger.setLevel(logging.getLevelName(cfg.LOGGING_LEVEL))
@@ -213,6 +216,38 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
                 inputs=['user/mode', 'recording'], 
                 outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
                 threaded=False)
+        elif cfg.CONTROLLER_TYPE == "HID16CH":
+            from donkeycar.parts.controller_sbus import SbusHid16ch
+            ctr = SbusHid16ch(cfg)
+            V.add(
+                ctr,
+                outputs=[
+                    'user/angle',
+                    'user/throttle',
+                    'user/mode',
+                    'recording',
+                    'esc_on',
+                    'disp_on',
+                    'rpm',
+                    'ch0',
+                    'ch1',
+                    'ch2',
+                    'ch3',
+                    'ch4',
+                    'ch5',
+                    'ch6',
+                    'ch7',
+                    'lidar',
+                    'ch11',
+                    'ch12',
+                    'ch13',
+                    'ch14',
+                    'ch21',
+                    'ch22',
+                    'ch23',
+                    'ch24',
+                ],
+                threaded=True)
         else:
             if cfg.CONTROLLER_TYPE == "custom":  #custom controller created with `donkey createjs` command
                 from my_joystick import MyJoystickController
@@ -339,7 +374,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             return 0
 
     rec_tracker_part = RecordTracker()
-    V.add(rec_tracker_part, inputs=["tub/num_records"], outputs=['records/alert'])
+    #V.add(rec_tracker_part, inputs=["tub/num_records"], outputs=['records/alert'])
 
     if cfg.AUTO_RECORD_ON_THROTTLE:
         def show_record_count_status():
@@ -501,20 +536,28 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
     class DriveMode:
         def run(self, mode,
                     user_angle, user_throttle,
+                    joystick_max_throttle, ai_throttle_mult, range, lidar,
                     pilot_angle, pilot_throttle):
             if mode == 'user':
-                return user_angle, user_throttle
+                return user_angle, user_throttle * joystick_max_throttle
 
             elif mode == 'local_angle':
                 return pilot_angle if pilot_angle else 0.0, user_throttle
 
             else:
+                if user_throttle > 0.3 or range > lidar:
+                    return pilot_angle if pilot_angle else 0.0, \
+                           0.0
                 return pilot_angle if pilot_angle else 0.0, \
-                       pilot_throttle * cfg.AI_THROTTLE_MULT \
+                       pilot_throttle * ai_throttle_mult \
                            if pilot_throttle else 0.0
 
     V.add(DriveMode(),
           inputs=['user/mode', 'user/angle', 'user/throttle',
+                  'ch3', #joystick_max_throttle
+                  'ch4', #ai_throttle_mult
+                  'ch6', #range
+                  'lidar',
                   'pilot/angle', 'pilot/throttle'],
           outputs=['angle', 'throttle'])
 
@@ -743,8 +786,17 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
                                max_pulse=cfg.THROTTLE_FORWARD_PWM,
                                zero_pulse=cfg.THROTTLE_STOPPED_PWM,
                                min_pulse=cfg.THROTTLE_REVERSE_PWM)
-        V.add(steering, inputs=['angle'], threaded=True)
-        V.add(throttle, inputs=['throttle'], threaded=True)
+        V.add(steering, inputs=['angle'], threaded=False)
+        V.add(throttle, inputs=['throttle'], threaded=False)
+
+        if cfg.HAVE_LIDAR:
+            from donkeycar.parts.actuator import PiGPIO_SWPWM
+            lidar_controller = PiGPIO_SWPWM(cfg.LIDAR_PWM_PIN, freq=cfg.LIDAR_PWM_FREQ)
+            lidar = PWMSteering(controller=lidar_controller,
+                                   left_pulse=cfg.LIDAR_LEFT_PWM,
+                                   right_pulse=cfg.LIDAR_RIGHT_PWM)
+
+            V.add(lidar, inputs=['angle'], threaded=False)
 
     # OLED setup
     if cfg.USE_SSD1306_128_32:
@@ -837,8 +889,113 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             ctr.set_tub(tub_writer.tub)
             ctr.print_controls()
 
+    if cfg.HAVE_INA226:
+        from donkeycar.parts.ina226 import Ina226
+        ina226_a = Ina226(0x48)
+        V.add(ina226_a, outputs=['volt_a'], threaded=False)
+        ina226_b = Ina226(0x49)
+        V.add(ina226_b, outputs=['volt_b'], threaded=False)
+
+    if cfg.HAVE_AHRS:
+        from donkeycar.parts.wt901 import Wt901
+        V.add(Wt901('/dev/ttyWt901'), outputs=[
+            'imu/acl_x', 'imu/acl_y', 'imu/acl_z',
+            'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z',
+            'imu/mag_x', 'imu/mag_y', 'imu/mag_z',
+            'imu/angle_x','imu/angle_y','imu/angle_z',
+            'imu/q_0', 'imu/q_1', 'imu/q_2', 'imu/q_3'],
+            threaded=True)
+
+    from donkeycar.parts.fpvdisp import FPVDisp
+    V.add(FPVDisp(cfg),
+        inputs=[
+            'tub/num_records',
+            'cam/image_array',
+            'cycle_time',
+            'volt_a',
+            'volt_b',
+            'user/mode',
+            'angle',
+            'throttle',
+            'rpm',
+            'lap',
+            'lidar',
+            'esc_on',
+            'disp_on',
+            'recording',
+            'ch1',
+            'ch2',
+            'ch3',
+            'ch4',
+            'ch5',
+            'ch6',
+            'imu/gyr_z'
+        ],
+        outputs=[
+            'kmph',
+        ],
+        threaded=False
+    )
+
+    from donkeycar.parts.csvlog import CsvLog
+    V.add(CsvLog(cfg),
+        inputs=[
+            'tub/num_records',
+            'cycle_time',
+            'volt_a',
+            'volt_b',
+            'user/mode',
+            'angle',
+            'throttle',
+            'user/angle',
+            'user/throttle',
+            'pilot/angle',
+            'pilot/throttle',
+            'rpm',
+            'kmph',
+            'lap',
+            'ch3', #'throttle_scale',
+            'ch4', #'ai_throttle_mult',
+            'ch5', #'gyro_gain',
+            'ch6', #'stop_range',
+            'lidar',
+            'imu/acl_x',
+            'imu/acl_y',
+            'imu/acl_z',
+            'imu/gyr_x',
+            'imu/gyr_y',
+            'imu/gyr_z',
+            'imu/mag_x',
+            'imu/mag_y',
+            'imu/mag_z',
+            'imu/angle_x',
+            'imu/angle_y',
+            'imu/angle_z',
+            'imu/q_0',
+            'imu/q_1',
+            'imu/q_2',
+            'imu/q_3',
+            'ch0',
+            'ch1',
+            'ch2',
+            'ch3',
+            'ch4',
+            'ch5',
+            'ch6',
+            'ch7',
+            'ch11',
+            'ch12',
+            'ch13',
+            'ch14',
+            'ch21',
+            'ch22',
+            'ch23',
+            'ch24',
+        ])
+
     # run the vehicle
-    V.start(rate_hz=cfg.DRIVE_LOOP_HZ, max_loop_count=cfg.MAX_LOOPS)
+    V.start(data_path=cfg.DATA_PATH,
+        rate_hz=cfg.DRIVE_LOOP_HZ, max_loop_count=cfg.MAX_LOOPS)
 
 
 if __name__ == '__main__':

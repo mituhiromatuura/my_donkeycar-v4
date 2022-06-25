@@ -36,7 +36,7 @@ class PartProfiler:
             delta = thresh
         self.records[p]['times'][-1] = delta
 
-    def report(self):
+    def report(self, data_path):
         logger.info("Part Profile Summary: (times in ms)")
         pt = PrettyTable()
         field_names = ["part", "max", "min", "avg"]
@@ -56,6 +56,9 @@ class PartProfiler:
             row += ["%.2f" % (np.percentile(arr, p) * 1000) for p in pctile]
             pt.add_row(row)
         logger.info('\n' + str(pt))
+        f = open(data_path + "/report.txt","w")
+        f.write(str(pt))
+        f.close()
 
 
 class Vehicle:
@@ -113,7 +116,7 @@ class Vehicle:
         """
         self.parts.remove(part)
 
-    def start(self, rate_hz=10, max_loop_count=None, verbose=False):
+    def start(self, data_path, rate_hz=10, max_loop_count=None, verbose=False):
         """
         Start vehicle's main drive loop.
 
@@ -157,6 +160,7 @@ class Vehicle:
                 if max_loop_count and loop_count > max_loop_count:
                     self.on = False
 
+                '''
                 sleep_time = 1.0 / rate_hz - (time.time() - start_time)
                 if sleep_time > 0.0:
                     time.sleep(sleep_time)
@@ -166,15 +170,16 @@ class Vehicle:
                         logger.info('WARN::Vehicle: jitter violation in vehicle loop '
                               'with {0:4.0f}ms'.format(abs(1000 * sleep_time)))
 
+                '''
                 if verbose and loop_count % 200 == 0:
-                    self.profiler.report()
+                    self.profiler.report(data_path)
 
         except KeyboardInterrupt:
             pass
         except Exception as e:
             traceback.print_exc()
         finally:
-            self.stop()
+            self.stop(data_path)
 
     def update_parts(self):
         '''
@@ -207,7 +212,7 @@ class Vehicle:
                 # finish timing part run
                 self.profiler.on_part_finished(p)
 
-    def stop(self):        
+    def stop(self, data_path):        
         logger.info('Shutting down vehicle and its parts...')
         for entry in self.parts:
             try:
@@ -218,4 +223,4 @@ class Vehicle:
             except Exception as e:
                 logger.error(e)
 
-        self.profiler.report()
+        self.profiler.report(data_path)

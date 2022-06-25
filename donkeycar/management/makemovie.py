@@ -77,14 +77,43 @@ class MakeMovie(object):
                 self.do_salient = self.init_salient(self.keras_part.interpreter.model)
 
         print('making movie', args.out, 'from', num_frames, 'images')
-        clip = mpy.VideoClip(self.make_frame, duration=((num_frames - 1) / self.cfg.DRIVE_LOOP_HZ))
-        clip.write_videofile(args.out, fps=self.cfg.DRIVE_LOOP_HZ)
+ 
+        import csv
+        try:
+            f = open(self.cfg.DATA_PATH + '/log.csv','r')
+            self.csv = [row for row in csv.reader(f)]
+
+            row = self.csv[0]
+            n = 0
+            self.dic = {}
+            for d in row:
+                self.dic[row[n]] = n
+                n += 1
+
+            n = 1
+            self.duration = 0
+            for d in self.csv:
+                row = self.csv[n]
+                self.duration += float(row[1])
+            self.duration /= 1000
+            self.csv_file = True
+        except:
+            print("open log.csv error")
+            self.csv_file = False
+
+        if not self.csv_file:
+            clip = mpy.VideoClip(self.make_frame, duration=((num_frames - 1) / self.cfg.DRIVE_LOOP_HZ))
+            clip.write_videofile(args.out, fps=self.cfg.DRIVE_LOOP_HZ)
+        else:
+            clip = mpy.VideoClip(self.make_frame, duration=self.duration)
+            clip.write_videofile(args.out, fps=(num_frames - 1) / self.duration)
 
     @staticmethod
     def draw_line_into_image(angle, throttle, is_left, img, color):
         import cv2
 
         height, width, _ = img.shape
+        '''
         length = height
         a1 = angle * 45.0
         l1 = throttle * length
@@ -93,6 +122,10 @@ class MakeMovie(object):
         p1 = tuple((mid - 2, height - 1))
         p11 = tuple((int(p1[0] + l1 * math.cos((a1 + 270.0) * DEG_TO_RAD)),
                      int(p1[1] + l1 * math.sin((a1 + 270.0) * DEG_TO_RAD))))
+        '''
+        p1 = tuple((int(round(width/2)), int(round(height))))
+        p11 = tuple((int(round(width/2 + width/2 * angle)),
+                    int(round(height + height * throttle))))
 
         cv2.line(img, p1, p11, color, 2)
 
@@ -102,8 +135,84 @@ class MakeMovie(object):
         """
         user_angle = float(record["user/angle"])
         user_throttle = float(record["user/throttle"])
+
+        try:
+            if record["user/mode"] == "local_angle":
+                user_angle = float(record["pilot/angle"])
+            elif record["user/mode"] == "local":
+                user_angle = float(record["pilot/angle"])
+                user_throttle = float(record["pilot/throttle"])
+        except:
+            pass
+
+        user_angle *= (1 if self.cfg.SBUS_CH1_MIN < self.cfg.SBUS_CH1_MAX else -1)
+        user_throttle *= (1 if self.cfg.SBUS_CH2_MIN < self.cfg.SBUS_CH2_MAX else -1)
+
         green = (0, 255, 0)
         self.draw_line_into_image(user_angle, user_throttle, False, img_drawon, green)
+
+        img = img_drawon
+        height, width, _ = img.shape
+        textFontFace = cv2.FONT_HERSHEY_SIMPLEX
+        textFontScale = 0.4
+        textColor = (0, 255, 0)
+        #textColor = (0, 0, 255)
+        textThickness = 1
+        cv2.putText(img, record["user/mode"],(0,9),textFontFace,textFontScale,textColor,textThickness)
+        cv2.putText(img, str(self.current),(120,9),textFontFace,textFontScale,textColor,textThickness)
+
+        if self.csv_file == True:
+            row = self.csv[self.current + 1]
+
+            i = 1
+            period_time = int(float(row[i]))
+            if period_time > 99.9:
+                pos = (159-3*8,height-1)
+            elif period_time > 9.9:
+                pos = (159-2*8,height-1)
+            else:
+                pos = (159-1*8,wheight-1)
+            cv2.putText(img, str(period_time),pos,textFontFace,textFontScale,textColor,textThickness)
+            self.duration += period_time
+
+            i = self.dic["va"]
+            volt_a = "{:.2f}".format(float(row[i]))
+            cv2.putText(img, volt_a,(0,height-1),textFontFace,textFontScale,textColor,textThickness)
+            i = self.dic["vb"]
+            volt_b = "{:.2f}".format(float(row[i]))
+            cv2.putText(img, volt_b,(0,height-11),textFontFace,textFontScale,textColor,textThickness)
+
+            i = self.dic["lap"]
+            lap = row[i]
+            cv2.putText(img, lap,(0,height-21),textFontFace,textFontScale,textColor,textThickness)
+
+            i = self.dic["kmph"]
+            kmph = "{:.1f}".format(float(row[i]))
+            cv2.putText(img, kmph,(40,height-1),textFontFace,textFontScale,textColor,textThickness)
+
+            i = self.dic["rpm"]
+            rpm = row[i]
+            cv2.putText(img, rpm,(90,height-1),textFontFace,textFontScale,textColor,textThickness)
+
+            i = self.dic["gyro_gain"]
+            gyro_gain = row[i]
+            cv2.putText(img, gyro_gain,(0,39),textFontFace,textFontScale,textColor,textThickness)
+
+            i = self.dic["ai_throttle_mult"]
+            ai_throttle_mult = "{:.2f}".format(float(row[i]))
+            cv2.putText(img, ai_throttle_mult,(0,29),textFontFace,textFontScale,textColor,textThickness)
+
+            i = self.dic["stop_range"]
+            stop_range = row[i]
+            cv2.putText(img, stop_range,(0,49),textFontFace,textFontScale,textColor,textThickness)
+
+            i = self.dic["lidar"]
+            lidar = row[i]
+            cv2.putText(img, lidar,(0,59),textFontFace,textFontScale,textColor,textThickness)
+
+            i = self.dic["throttle_scale"]
+            throttle_scale = "{:.2f}".format(float(row[i]))
+            cv2.putText(img, throttle_scale,(0,19),textFontFace,textFontScale,textColor,textThickness)
 
     def draw_model_prediction(self, img, img_drawon):
         """
