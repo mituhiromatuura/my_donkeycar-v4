@@ -536,25 +536,30 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
     class DriveMode:
         def run(self, mode,
                     user_angle, user_throttle,
-                    joystick_max_throttle, ai_throttle_mult, range, lidar,
+                    ai_throttle_mult, range, lidar,
                     pilot_angle, pilot_throttle):
+
+            if cfg.CONTROLLER_TYPE != 'HID16CH':
+                ai_throttle_mult = cfg.AI_THROTTLE_MULT
+                range = 0
+                lidar = 0
+
             if mode == 'user':
-                return user_angle, user_throttle * joystick_max_throttle
+                return user_angle, user_throttle
 
             elif mode == 'local_angle':
                 return pilot_angle if pilot_angle else 0.0, user_throttle
 
             else:
-                if user_throttle > 0.3 or range > lidar:
-                    return pilot_angle if pilot_angle else 0.0, \
-                           0.0
+                if abs(user_throttle) > 0.3 or range > lidar:
+                    return pilot_angle if pilot_angle else 0.0, 0.0
+
                 return pilot_angle if pilot_angle else 0.0, \
                        pilot_throttle * ai_throttle_mult \
                            if pilot_throttle else 0.0
 
     V.add(DriveMode(),
           inputs=['user/mode', 'user/angle', 'user/throttle',
-                  'ch3', #joystick_max_throttle
                   'ch4', #ai_throttle_mult
                   'ch6', #range
                   'lidar',
@@ -625,8 +630,8 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
                                             max_pulse=dt['THROTTLE_FORWARD_PWM'],
                                             zero_pulse=dt['THROTTLE_STOPPED_PWM'],
                                             min_pulse=dt['THROTTLE_REVERSE_PWM'])
-        V.add(steering, inputs=['angle'], threaded=True)
-        V.add(throttle, inputs=['throttle'], threaded=True)
+        V.add(steering, inputs=['angle'], threaded=False)
+        V.add(throttle, inputs=['throttle'], threaded=False)
 
     elif cfg.DRIVE_TRAIN_TYPE == "I2C_SERVO":
         #
@@ -863,7 +868,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
     # do we want to store new records into own dir or append to existing
     tub_path = TubHandler(path=cfg.DATA_PATH).create_tub_path() if \
         cfg.AUTO_CREATE_NEW_TUB else cfg.DATA_PATH
-    tub_writer = TubWriter(tub_path, inputs=inputs, types=types, metadata=meta)
+    tub_writer = TubWriter(cfg, tub_path, inputs=inputs, types=types, metadata=meta)
     V.add(tub_writer, inputs=inputs, outputs=["tub/num_records"], run_condition='recording')
 
     # Telemetry (we add the same metrics added to the TubHandler

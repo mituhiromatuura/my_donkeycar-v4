@@ -25,8 +25,8 @@ class SbusHid16ch:
 		self.ch2max = cfg.SBUS_CH2_MAX
 		self.ch2min = cfg.SBUS_CH2_MIN
 
-		GPIO.setmode(GPIO.BOARD)
-		self.gpio_pin_esc_on = 16 #GPIO23 22 #GPIO25
+		self.gpio_pin_esc_on = cfg.GPIO_PIN_BCM_ESC_ON
+		GPIO.setmode(GPIO.BCM)
 		GPIO.setup(self.gpio_pin_esc_on, GPIO.OUT)
 		GPIO.output(self.gpio_pin_esc_on, GPIO.LOW)
 
@@ -104,12 +104,10 @@ class SbusHid16ch:
 				if self.ch7 == 0:
 					ch7 = 0
 			else:
-				if self.ch7 == 0 or self.ch7 == -8:
-					# esc off
+				if self.ch7 == 0 or self.ch7 <= -8:
 					self.esc_on = False
 					GPIO.output(self.gpio_pin_esc_on, GPIO.LOW)
 				else:
-					# esc on
 					self.esc_on = True
 					GPIO.output(self.gpio_pin_esc_on, GPIO.HIGH)
 
@@ -125,9 +123,13 @@ class SbusHid16ch:
 				else:
 					self.mode = 'user'
 
-				if self.ch7 == -6:
+				if self.ch7 == -4:
+					if self.disp_on == True:
+						print("disp_off")
 					self.disp_on = False
 				else:
+					if self.disp_on == False:
+						print("disp_on")
 					self.disp_on = True
 
 	def run_threaded(self):

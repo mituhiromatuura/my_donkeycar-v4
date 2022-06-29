@@ -111,12 +111,12 @@ class TubWriter(object):
     """
     A Donkey part, which can write records to the datastore.
     """
-    def __init__(self, base_path, inputs=[], types=[], metadata=[],
+    def __init__(self, cfg, base_path, inputs=[], types=[], metadata=[],
                  max_catalog_len=1000):
         self.tub = Tub(base_path, inputs, types, metadata, max_catalog_len)
 
-        self.pin = 29 #GPIO5
-        GPIO.setmode(GPIO.BOARD)
+        self.pin = cfg.GPIO_PIN_BCM_TUBWRITER
+        GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.pin, GPIO.OUT)
         GPIO.output(self.pin, GPIO.HIGH)
 

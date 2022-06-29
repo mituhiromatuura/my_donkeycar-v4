@@ -38,14 +38,17 @@ class FPVDisp:
 		gyr_z,
 		):
 
-		kmph = round(rpm * self.cfg.KMPH, 2)
+		if self.cfg.HAVE_REVCOUNT:
+			kmph = round(rpm * self.cfg.KMPH, 2)
+		else:
+			kmph = 0
+
 		if self.on:
 
-			if disp_on:
+			if self.cfg.CONTROLLER_TYPE != 'HID16CH' or self.on:
 
-				wwidth = self.cfg.IMAGE_W
-				wheight = self.cfg.IMAGE_H
 				img = image.copy()
+				height, width, _ = img.shape
 
 				if recording:
 					color = (255,0,0) #red
@@ -54,34 +57,33 @@ class FPVDisp:
 				else:
 					color = (0,255,0) #green
 
-				x0=int(round(wwidth/2))
-				y0=int(round(wheight))
-				x1=int(round(wwidth/2 + wwidth/2*angle * (1 if self.cfg.SBUS_CH1_MIN < self.cfg.SBUS_CH1_MAX else -1)))
-				y1=int(round(wheight + wheight*throttle * (1 if self.cfg.SBUS_CH2_MIN < self.cfg.SBUS_CH2_MAX else -1)))
+				x0=int(round(width/2))
+				y0=int(round(height))
+				x1=int(round(width/2 + width/2*angle * self.cfg.CONTROLLER_ANGLE_NR))
+				y1=int(round(height + height*throttle * self.cfg.CONTROLLER_THROTTLE_NR))
 				cv2.line(img,(x0 ,y0),(x1,y1),color,2)
 
 				def printText(img, str, xy, textColor=(0,255,0)):
 					textFontFace = cv2.FONT_HERSHEY_SIMPLEX
 					textFontScale = 0.4
-					#textColor = (0,255,0)
 					textThickness = 1
 					cv2.putText(img, str, xy, textFontFace,textFontScale,textColor,textThickness)
 
-				printText(img, str(ch1), (wwidth-8*9,wheight-11))
-				printText(img, str(ch2), (wwidth-8*4,wheight-11))
+				printText(img, str(ch1), (width-8*9,height-11))
+				printText(img, str(ch2), (width-8*4,height-11))
 
-				printText(img, str(num_records), (wwidth-8*5,wheight-21))
+				printText(img, str(num_records), (width-8*5,height-21))
 				printText(img, mode, (0,9))
 
 				if esc_on:
-					printText(img, 'ESC ON', (wwidth-8*6,9), (255,0,0))
+					printText(img, 'ESC ON', (width-8*6,9), (255,0,0))
 				else:
-					printText(img, 'ESC OFF', (wwidth-8*7,9))
+					printText(img, 'ESC OFF', (width-8*7,9))
 
 				if recording:
-					printText(img, 'REC ON', (wwidth-8*6,19), (255,0,0))
+					printText(img, 'REC ON', (width-8*6,19), (255,0,0))
 				else:
-					printText(img, 'REC OFF', (wwidth-8*7,19))
+					printText(img, 'REC OFF', (width-8*7,19))
 
 				printText(img, str(ch3), (0,19))
 				printText(img, str(ch4), (0,29))
@@ -97,20 +99,20 @@ class FPVDisp:
 					else:
 						self.deg += cycle_time * gyr_z
 						self.lap = int(self.deg / 1000 // 360)
-					printText(img, str(self.lap), (0,wheight-21))
+					printText(img, str(self.lap), (0,height-21))
 
 				if self.cfg.HAVE_INA226:
-					printText(img, "{:.2f}".format(volt_b), (0,wheight-11))
-					printText(img, "{:.2f}".format(volt_a), (0,wheight-1))
+					printText(img, "{:.2f}".format(volt_b), (0,height-11))
+					printText(img, "{:.2f}".format(volt_a), (0,height-1))
 
 				if self.cfg.HAVE_REVCOUNT:
-					printText(img, str(rpm), (wwidth-8*9,wheight-1))
-					printText(img, "{:.1f}".format(kmph), (8*5,wheight-1))
+					printText(img, str(rpm), (width-8*9,height-1))
+					printText(img, "{:.1f}".format(kmph), (8*5,height-1))
 
-				printText(img, "{:.1f}".format(cycle_time), (wwidth-8*7//2,wheight-1))
+				printText(img, "{:.1f}".format(cycle_time), (width-8*7//2,height-1))
 
 				cv2.namedWindow('DonkeyCamera', cv2.WINDOW_NORMAL)
-				cv2.resizeWindow("DonkeyCamera", wwidth, wheight)
+				cv2.resizeWindow("DonkeyCamera", width, height)
 				cv2.imshow('DonkeyCamera', img[:,:,::-1])
 				wk = cv2.waitKey(1) & 0xff
 				if wk == 99 or wk == 27: # ctrl-c or esc

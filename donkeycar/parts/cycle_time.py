@@ -4,12 +4,12 @@ import RPi.GPIO as GPIO
 class CycleTime:
     def __init__(self, cfg):
         self.cfg = cfg
-        self.gpio_pin_overtime = 13 #GPIO13 21 #GPIO9
+        self.gpio_pin_cycletime = cfg.GPIO_PIN_BCM_CYCLETIME
         self.led_off = GPIO.HIGH
         self.led_on = GPIO.LOW
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(self.gpio_pin_overtime, GPIO.OUT)
-        GPIO.output(self.gpio_pin_overtime, self.led_off)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.gpio_pin_cycletime, GPIO.OUT)
+        GPIO.output(self.gpio_pin_cycletime, self.led_off)
 
         self.sum = 0
         self.n = 0
@@ -18,11 +18,11 @@ class CycleTime:
     def run(self, mode):
         sleep_time = 1.0 / self.cfg.DRIVE_LOOP_HZ - (time.time() - self.time)
         if sleep_time >= 0.0:
-            GPIO.output(self.gpio_pin_overtime, self.led_off)
+            GPIO.output(self.gpio_pin_cycletime, self.led_off)
             if mode == 'user':
                 time.sleep(sleep_time)
         else:
-            GPIO.output(self.gpio_pin_overtime, self.led_on)
+            GPIO.output(self.gpio_pin_cycletime, self.led_on)
 
         cycle = (time.time() - self.time)
         self.time = time.time()
