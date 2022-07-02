@@ -137,6 +137,7 @@ class Vehicle:
             If debug output should be printed into shell
         """
 
+        self.data_path = data_path
         try:
 
             self.on = True
@@ -160,7 +161,6 @@ class Vehicle:
                 if max_loop_count and loop_count > max_loop_count:
                     self.on = False
 
-                '''
                 sleep_time = 1.0 / rate_hz - (time.time() - start_time)
                 if sleep_time > 0.0:
                     time.sleep(sleep_time)
@@ -170,16 +170,15 @@ class Vehicle:
                         logger.info('WARN::Vehicle: jitter violation in vehicle loop '
                               'with {0:4.0f}ms'.format(abs(1000 * sleep_time)))
 
-                '''
                 if verbose and loop_count % 200 == 0:
-                    self.profiler.report(data_path)
+                    self.profiler.report(self.data_path)
 
         except KeyboardInterrupt:
             pass
         except Exception as e:
             traceback.print_exc()
         finally:
-            self.stop(data_path)
+            self.stop()
 
     def update_parts(self):
         '''
@@ -212,7 +211,7 @@ class Vehicle:
                 # finish timing part run
                 self.profiler.on_part_finished(p)
 
-    def stop(self, data_path):        
+    def stop(self):        
         logger.info('Shutting down vehicle and its parts...')
         for entry in self.parts:
             try:
@@ -223,4 +222,4 @@ class Vehicle:
             except Exception as e:
                 logger.error(e)
 
-        self.profiler.report(data_path)
+        self.profiler.report(self.data_path)

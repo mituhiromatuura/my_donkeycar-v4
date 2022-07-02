@@ -16,16 +16,12 @@ class CycleTime:
         self.time = time.time()
 
     def run(self, mode):
-        sleep_time = 1.0 / self.cfg.DRIVE_LOOP_HZ - (time.time() - self.time)
-        if sleep_time >= 0.0:
-            GPIO.output(self.gpio_pin_cycletime, self.led_off)
-            if mode == 'user':
-                time.sleep(sleep_time)
-        else:
-            GPIO.output(self.gpio_pin_cycletime, self.led_on)
-
         cycle = (time.time() - self.time)
         self.time = time.time()
+
+        if 1.0 / self.cfg.DRIVE_LOOP_HZ < cycle:
+            GPIO.output(self.gpio_pin_cycletime, self.led_on)
+
         self.sum += cycle
         self.n += 1
         return cycle * 1000 # msec
