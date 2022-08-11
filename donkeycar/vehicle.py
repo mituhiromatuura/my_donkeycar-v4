@@ -36,7 +36,7 @@ class PartProfiler:
             delta = thresh
         self.records[p]['times'][-1] = delta
 
-    def report(self):
+    def report(self, data_path):
         logger.info("Part Profile Summary: (times in ms)")
         pt = PrettyTable()
         field_names = ["part", "max", "min", "avg"]
@@ -56,6 +56,9 @@ class PartProfiler:
             row += ["%.2f" % (np.percentile(arr, p) * 1000) for p in pctile]
             pt.add_row(row)
         logger.info('\n' + str(pt))
+        f = open(data_path + "/report.txt","w")
+        f.write(str(pt))
+        f.close()
 
 
 class Vehicle:
@@ -113,7 +116,7 @@ class Vehicle:
         """
         self.parts.remove(part)
 
-    def start(self, rate_hz=10, max_loop_count=None, verbose=False):
+    def start(self, data_path, rate_hz=10, max_loop_count=None, verbose=False):
         """
         Start vehicle's main drive loop.
 
@@ -134,6 +137,7 @@ class Vehicle:
             If debug output should be printed into shell
         """
 
+        self.data_path = data_path
         try:
 
             self.on = True
@@ -167,7 +171,7 @@ class Vehicle:
                               'with {0:4.0f}ms'.format(abs(1000 * sleep_time)))
 
                 if verbose and loop_count % 200 == 0:
-                    self.profiler.report()
+                    self.profiler.report(self.data_path)
 
         except KeyboardInterrupt:
             pass
@@ -218,4 +222,4 @@ class Vehicle:
             except Exception as e:
                 logger.error(e)
 
-        self.profiler.report()
+        self.profiler.report(self.data_path)

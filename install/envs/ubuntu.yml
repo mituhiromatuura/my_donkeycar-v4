@@ -1,4 +1,4 @@
-name: donkey
+name: donkey-v4
 
 channels:
   - defaults
@@ -36,7 +36,7 @@ dependencies:
   - kivy=2.0.0
   - plotly
   - pyyaml
-  - tensorflow=2.2.0
+  - tensorflow-gpu=2.2.0
   - fastai
   - pynmea2
   - pyserial

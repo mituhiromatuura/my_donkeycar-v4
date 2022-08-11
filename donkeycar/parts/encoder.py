@@ -125,7 +125,7 @@ class RotaryEncoder():
         self.pin = pin
         self.pi.set_mode(self.pin, pigpio.INPUT)
         self.pi.set_pull_up_down(self.pin, pigpio.PUD_DOWN)
-        self.cb = self.pi.callback(self.pin, pigpio.FALLING_EDGE, self._cb)
+        self.cb = self.pi.callback(self.pin, pigpio.EITHER_EDGE, self._cb)
 
 
         # initialize the odometer values

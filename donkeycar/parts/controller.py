@@ -243,6 +243,8 @@ class Channel:
         self.tick = None
         self.high_tick = None
 
+import RPi.GPIO as GPIO
+
 class RCReceiver:
     MIN_OUT = -1
     MAX_OUT = 1
@@ -252,8 +254,8 @@ class RCReceiver:
 
         # standard variables
         self.channels = [Channel(cfg.STEERING_RC_GPIO), Channel(cfg.THROTTLE_RC_GPIO), Channel(cfg.DATA_WIPER_RC_GPIO)]
-        self.min_pwm = 1000
-        self.max_pwm = 2000
+        self.min_pwm = cfg.PWM_MIN
+        self.max_pwm = cfg.PWM_MAX
         self.oldtime = 0
         self.STEERING_MID = cfg.PIGPIO_STEERING_MID
         self.MAX_FORWARD = cfg.PIGPIO_MAX_FORWARD
@@ -274,6 +276,21 @@ class RCReceiver:
             if self.debug:
                 logger.info(f'RCReceiver gpio {channel.pin} created')
     
+        if cfg.PIN_KEYA != None:
+            self.btnApin = cfg.PIN_KEYA
+            self.btnApush = False
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.btnApin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        if cfg.PIN_KEYB != None:
+            self.btnBpin = cfg.PIN_KEYB
+            self.btnBpush = False
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.btnBpin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        if cfg.PIN_KEYC != None:
+            self.btnCpin = cfg.PIN_KEYC
+            self.btnCpush = False
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.btnCpin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
     def cbf(self, gpio, level, tick):
         import pigpio
@@ -321,19 +338,47 @@ class RCReceiver:
         if self.debug:
             logger.info(f'RC CH1 signal:{round(self.signals[0], 3)}, RC CH2 signal:{round(self.signals[1], 3)}, RC CH3 signal:{round(self.signals[2], 3)}')
 
-        # check mode channel if present
-        if (self.signals[2] - self.jitter) > 0:  
-            self.mode = 'local'
+        if self.btnBpin == None:
+            # check mode channel if present
+            if (self.signals[2] - self.jitter) > 0:  
+                self.mode = 'local'
+            else:
+                # pass though value if provided
+                self.mode = mode if mode is not None else 'user'
         else:
-            # pass though value if provided
-            self.mode = mode if mode is not None else 'user'
+            if self.btnApush == False:
+                if GPIO.input(self.btnBpin) == 0: #push
+                    self.btnApush = True
+                    if mode == 'user':
+                        self.mode = 'local_angle'
+                    elif mode == 'local_angle':
+                        self.mode = 'local'
+                    else:
+                        self.mode = 'user'
+            else:
+                if GPIO.input(self.btnBpin) == 1: #not push:
+                    self.btnApush = False
 
-        # check throttle channel
-        if ((self.signals[1] - self.jitter) > 0) and self.RECORD: # is throttle above jitter level? If so, turn on auto-record 
-            is_action = True
+        if self.btnCpin == None:
+            # check throttle channel
+            if ((self.signals[1] - self.jitter) > 0) and self.RECORD: # is throttle above jitter level? If so, turn on auto-record 
+                is_action = True
+            else:
+                # pass through default value
+                is_action = recording if recording is not None else False
         else:
-            # pass through default value
             is_action = recording if recording is not None else False
+            if self.btnBpush == False:
+                if GPIO.input(self.btnCpin) == 0: #push
+                    self.btnBpush = True
+                    if recording == True:
+                        is_action = False
+                    else:
+                        is_action = True
+            else:
+                if GPIO.input(self.btnCpin) == 1: #not push:
+                    self.btnBpush = False
+
         return self.signals[0], self.signals[1], self.mode, is_action
 
     def shutdown(self):

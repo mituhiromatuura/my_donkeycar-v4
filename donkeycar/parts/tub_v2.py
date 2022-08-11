@@ -105,19 +105,28 @@ class Tub(object):
         return name
 
 
+import RPi.GPIO as GPIO
+
 class TubWriter(object):
     """
     A Donkey part, which can write records to the datastore.
     """
-    def __init__(self, base_path, inputs=[], types=[], metadata=[],
+    def __init__(self, cfg, base_path, inputs=[], types=[], metadata=[],
                  max_catalog_len=1000):
         self.tub = Tub(base_path, inputs, types, metadata, max_catalog_len)
+
+        self.pin = cfg.GPIO_PIN_BCM_TUBWRITER
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.pin, GPIO.OUT)
+        GPIO.output(self.pin, GPIO.HIGH)
 
     def run(self, *args):
         assert len(self.tub.inputs) == len(args), \
             f'Expected {len(self.tub.inputs)} inputs but received {len(args)}'
         record = dict(zip(self.tub.inputs, args))
+        GPIO.output(self.pin, GPIO.LOW)
         self.tub.write_record(record)
+        GPIO.output(self.pin, GPIO.HIGH)
         return self.tub.manifest.current_index
 
     def __iter__(self):

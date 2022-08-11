@@ -201,10 +201,37 @@ class PiGPIO_PWM():
 
     def set_pulse(self, pulse):
 #
-        self.output = pulse * 200
+        self.output = pulse * self.freq
         if self.output > 0:
             self.pgio.hardware_PWM(self.pin, self.freq, int(self.output if self.inverted == False else 1e6 - self.output))
 
+
+    def run(self, pulse):
+        self.set_pulse(pulse)
+
+
+class PiGPIO_SWPWM():
+
+    def __init__(self, pin, pgio=None, freq=75, inverted=False, center=0):
+        import pigpio
+
+        self.pin = pin
+        self.pgio = pgio or pigpio.pi()
+        self.freq = freq
+        self.inverted = inverted
+        self.center = center
+        self.pgio.set_mode(self.pin, pigpio.OUTPUT)
+        self.pgio.set_PWM_frequency(self.pin, self.freq)
+        self.pgio.set_PWM_range(self.pin, 1000000 // self.freq)
+
+    def __del__(self):
+        self.pgio.stop()
+
+    def set_pulse(self, pulse):
+        try:
+          self.pgio.set_PWM_dutycycle(self.pin, pulse)
+        except:
+          pass
 
     def run(self, pulse):
         self.set_pulse(pulse)
